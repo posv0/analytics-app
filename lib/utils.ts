@@ -42,9 +42,19 @@ export function safeString(value: any, defaultValue = ""): string {
   return String(value)
 }
 
-// Format currency with null handling
-export function formatCurrency(value: any, currency = "USD"): string {
+// Format currency with INR as default
+export function formatCurrency(value: any, currency = "INR"): string {
   const num = safeNumber(value, 0)
+
+  if (currency === "INR") {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num)
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency,
@@ -60,7 +70,7 @@ export function formatDate(value: any, options?: Intl.DateTimeFormatOptions): st
     if (isNaN(date.getTime())) return "Invalid Date"
 
     return new Intl.DateTimeFormat(
-      "en-US",
+      "en-IN",
       options || {
         year: "numeric",
         month: "short",
@@ -97,6 +107,37 @@ export function calculateTenure(startDate: any): string {
   }
 }
 
+// Server-side calculation for staff metrics
+export function calculateStaffMetrics(staff: any) {
+  if (!staff || !staff.monthlySalesOnDailyBasis) {
+    return {
+      calculatedDaysAbsent: 0,
+      calculatedHolidaysTaken: 0,
+      revenueRatio: 0,
+    }
+  }
+
+  // Calculate days absent (count days with 0 sales)
+  const calculatedDaysAbsent = staff.monthlySalesOnDailyBasis.filter(
+    (day: any) => safeNumber(day?.amount, 0) === 0,
+  ).length
+
+  // Calculate holidays taken (simplified logic - could be enhanced)
+  // For now, we'll use a portion of absent days as holidays
+  const calculatedHolidaysTaken = Math.min(calculatedDaysAbsent, 6)
+
+  // Calculate revenue ratio (revenue generated per salary rupee)
+  const totalRevenue = safeNumber(staff.totalSoldByStaff, 0)
+  const salary = safeNumber(staff.salaryAmount, 1)
+  const revenueRatio = totalRevenue / salary
+
+  return {
+    calculatedDaysAbsent,
+    calculatedHolidaysTaken,
+    revenueRatio: Math.round(revenueRatio * 100) / 100, // Round to 2 decimal places
+  }
+}
+
 // Filter data by time period
 export function filterDataByPeriod(data: any[], period: "7d" | "30d" | "90d" | "1y"): any[] {
   if (!data || data.length === 0) return []
@@ -125,6 +166,7 @@ export function filterDataByPeriod(data: any[], period: "7d" | "30d" | "90d" | "
     if (!item.date) return false
 
     try {
+      // Parse date format "1 July 2025"
       const itemDate = new Date(item.date)
       return itemDate >= cutoffDate
     } catch {
@@ -158,13 +200,16 @@ export function calculateAdvancedStats(dailySalesData: any[], staffData: any[], 
     return currentSales > topSales ? staff : top
   }, activeStaffData[0] || {})
 
-  // Calculate total absences and active staff
-  const totalAbsences = activeStaffData.reduce((total, staff) => total + safeNumber(staff?.daysAbsent, 0), 0)
+  // Calculate total absences and active staff using server-side calculations
+  const totalAbsences = activeStaffData.reduce((total, staff) => {
+    const metrics = calculateStaffMetrics(staff)
+    return total + metrics.calculatedDaysAbsent
+  }, 0)
   const activeStaff = activeStaffData.length
 
   // Calculate average daily sales
   const avgDailySales = dailySalesData.length > 0 ? Math.round(totalRevenue / dailySalesData.length) : 0
-  const dailyTarget = 20000 // Mock target
+  const dailyTarget = 25000 // Updated target in INR
 
   return {
     totalRevenue,
@@ -265,11 +310,14 @@ export function getCorrelationData(yearlyData: any[], staffData: any[]) {
   // Mock correlation data between staff performance and sales with null handling
   return staffData
     .filter((staff) => staff?.status === "active")
-    .map((staff, index) => ({
-      staffPerformance: (safeNumber(staff?.totalSoldByStaff, 0) / safeNumber(staff?.salaryAmount, 1)) * 100,
-      sales: safeNumber(staff?.totalSoldByStaff, 0),
-      name: safeString(staff?.staffName, "Unknown"),
-    }))
+    .map((staff, index) => {
+      const metrics = calculateStaffMetrics(staff)
+      return {
+        staffPerformance: metrics.revenueRatio,
+        sales: safeNumber(staff?.totalSoldByStaff, 0),
+        name: safeString(staff?.staffName, "Unknown"),
+      }
+    })
 }
 
 // Advanced analytics functions
@@ -295,7 +343,7 @@ export function getAdvancedAnalytics(dailySalesData: any[], staffData: any[], ti
 
   return {
     growthRate: Math.round(growthRate * 10) / 10,
-    efficiencyScore: Math.min(100, Math.round((totalRevenue / (filteredData.length * 25000)) * 100)),
+    efficiencyScore: Math.min(100, Math.round((totalRevenue / (filteredData.length * 30000)) * 100)),
     marketShare: 32.1,
     forecastAccuracy: 94.2,
     customerRetention: 78.5,
@@ -329,15 +377,12 @@ export function getShopComparison(dailySalesData: any[], timeRange: string) {
     revenue: stats.revenue,
     transactions: stats.transactions,
     avgOrderValue: stats.transactions > 0 ? Math.round(stats.revenue / stats.transactions) : 0,
-    performanceScore: Math.min(100, Math.round((stats.revenue / 100000) * 100)),
+    performanceScore: Math.min(100, Math.round((stats.revenue / 150000) * 100)),
   }))
 }
 
 export function getTimeSeriesAnalysis(dailySalesData: any[], timeRange: string) {
   const filteredData = filterDataByPeriod(dailySalesData, timeRange as any)
-
-  // Group data by week or month depending on time range
-  const groupBy = timeRange === "7d" || timeRange === "30d" ? "day" : "week"
 
   return filteredData.map((day, index) => {
     const revenue = Object.values(day.salesData || {}).reduce(
@@ -369,10 +414,10 @@ export function getTimeSeriesAnalysis(dailySalesData: any[], timeRange: string) 
 export function getCustomerSegmentation(dailySalesData: any[]) {
   // Mock customer segmentation data
   return [
-    { name: "Premium", value: 25, description: "High-value customers", clv: 2500 },
-    { name: "Regular", value: 45, description: "Frequent buyers", clv: 1200 },
-    { name: "Occasional", value: 20, description: "Infrequent buyers", clv: 600 },
-    { name: "New", value: 10, description: "First-time customers", clv: 300 },
+    { name: "Premium", value: 25, description: "High-value customers", clv: 125000 },
+    { name: "Regular", value: 45, description: "Frequent buyers", clv: 60000 },
+    { name: "Occasional", value: 20, description: "Infrequent buyers", clv: 30000 },
+    { name: "New", value: 10, description: "First-time customers", clv: 15000 },
   ]
 }
 
@@ -428,36 +473,37 @@ export function getStaffGoals(staff: any) {
   if (!staff) return []
 
   const totalSales = safeNumber(staff.totalSoldByStaff, 0)
-  const daysAbsent = safeNumber(staff.daysAbsent, 0)
+  const metrics = calculateStaffMetrics(staff)
 
   return [
     {
       title: "Monthly Sales Target",
       current: totalSales,
-      target: 80000,
-      progress: Math.min(100, (totalSales / 80000) * 100),
-      status: totalSales >= 80000 ? "completed" : totalSales >= 60000 ? "on-track" : "behind",
+      target: 100000,
+      progress: Math.min(100, (totalSales / 100000) * 100),
+      status: totalSales >= 100000 ? "completed" : totalSales >= 75000 ? "on-track" : "behind",
     },
     {
       title: "Attendance Goal",
-      current: 31 - daysAbsent,
-      target: 30,
-      progress: Math.min(100, ((31 - daysAbsent) / 30) * 100),
-      status: daysAbsent <= 1 ? "completed" : daysAbsent <= 3 ? "on-track" : "behind",
+      current: 31 - metrics.calculatedDaysAbsent,
+      target: 28,
+      progress: Math.min(100, ((31 - metrics.calculatedDaysAbsent) / 28) * 100),
+      status:
+        metrics.calculatedDaysAbsent <= 3 ? "completed" : metrics.calculatedDaysAbsent <= 5 ? "on-track" : "behind",
     },
     {
-      title: "Customer Satisfaction",
-      current: 4.2,
-      target: 4.5,
-      progress: (4.2 / 4.5) * 100,
-      status: "on-track",
+      title: "Revenue Efficiency",
+      current: metrics.revenueRatio,
+      target: 3.0,
+      progress: Math.min(100, (metrics.revenueRatio / 3.0) * 100),
+      status: metrics.revenueRatio >= 3.0 ? "completed" : metrics.revenueRatio >= 2.0 ? "on-track" : "behind",
     },
     {
-      title: "Training Completion",
-      current: 8,
-      target: 10,
-      progress: 80,
-      status: "on-track",
+      title: "Holiday Balance",
+      current: metrics.calculatedHolidaysTaken,
+      target: 4,
+      progress: (metrics.calculatedHolidaysTaken / 4) * 100,
+      status: metrics.calculatedHolidaysTaken >= 4 ? "completed" : "on-track",
     },
   ]
 }
@@ -473,24 +519,25 @@ export function validateSalesData(salesData: any): boolean {
 
 // Data transformation helpers
 export function transformStaffForTable(staffData: any[]) {
-  return staffData.filter(validateStaffData).map((staff) => ({
-    id: staff.staffId,
-    name: safeString(staff.staffName, "Unknown"),
-    email: safeString(staff.email, "N/A"),
-    phone: safeString(staff.phone, "N/A"),
-    startDate: formatDate(staff.startDate),
-    tenure: calculateTenure(staff.startDate),
-    position: safeString(staff.position, "N/A"),
-    department: safeString(staff.department, "N/A"),
-    manager: safeString(staff.manager, "N/A"),
-    status: safeString(staff.status, "unknown"),
-    salary: formatCurrency(staff.salaryAmount),
-    totalSales: formatCurrency(staff.totalSoldByStaff),
-    efficiency: Math.round((safeNumber(staff.totalSoldByStaff, 0) / safeNumber(staff.salaryAmount, 1)) * 100),
-    daysAbsent: safeNumber(staff.daysAbsent, 0),
-    holidaysTaken: safeNumber(staff.holidaysTaken, 0),
-    performanceRating: staff.performanceRating ? staff.performanceRating.toFixed(1) : "N/A",
-    lastReview: formatDate(staff.lastReview),
-    nextReview: formatDate(staff.nextReview),
-  }))
+  return staffData.filter(validateStaffData).map((staff) => {
+    const metrics = calculateStaffMetrics(staff)
+
+    return {
+      id: staff.staffId,
+      name: safeString(staff.staffName, "Unknown"),
+      email: safeString(staff.email, "N/A"),
+      phone: safeString(staff.phone, "N/A"),
+      startDate: formatDate(staff.startDate),
+      tenure: calculateTenure(staff.startDate),
+      position: safeString(staff.position, "N/A"),
+      department: safeString(staff.department, "N/A"),
+      manager: safeString(staff.manager, "N/A"),
+      status: safeString(staff.status, "unknown"),
+      salary: formatCurrency(staff.salaryAmount, "INR"),
+      totalSales: formatCurrency(staff.totalSoldByStaff, "INR"),
+      revenueRatio: metrics.revenueRatio,
+      daysAbsent: metrics.calculatedDaysAbsent,
+      holidaysTaken: metrics.calculatedHolidaysTaken,
+    }
+  })
 }

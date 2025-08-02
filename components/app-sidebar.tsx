@@ -1,6 +1,18 @@
 "use client"
 
-import { BarChart3, Users, Home, TrendingUp, Moon, Sun, Settings, Bell, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  BarChart3,
+  Users,
+  Home,
+  TrendingUp,
+  Moon,
+  Sun,
+  Settings,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -51,6 +63,7 @@ export function AppSidebar() {
   const { theme, setTheme } = useTheme()
   const { state, toggleSidebar } = useSidebar()
   const [mounted, setMounted] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const isCollapsed = state === "collapsed"
 
@@ -59,6 +72,13 @@ export function AppSidebar() {
     setMounted(true)
   }, [])
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    // Simulate data refresh
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    setIsRefreshing(false)
+  }
+
   if (!mounted) {
     return null
   }
@@ -66,10 +86,14 @@ export function AppSidebar() {
   return (
     <TooltipProvider>
       <Sidebar className="border-r border-border/40" collapsible="icon">
-        <SidebarHeader className="p-6 border-b border-border/40">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shrink-0">
-              <BarChart3 className="h-5 w-5 text-white" />
+        <SidebarHeader
+          className={`${isCollapsed ? "p-3" : "p-6"} border-b border-border/40 transition-all duration-200`}
+        >
+          <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
+            <div
+              className={`flex ${isCollapsed ? "h-8 w-8" : "h-10 w-10"} items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shrink-0 transition-all duration-200`}
+            >
+              <BarChart3 className={`${isCollapsed ? "h-4 w-4" : "h-5 w-5"} text-white`} />
             </div>
             {!isCollapsed && (
               <div className="min-w-0">
@@ -80,7 +104,7 @@ export function AppSidebar() {
           </div>
         </SidebarHeader>
 
-        <SidebarContent className="px-4">
+        <SidebarContent className={`${isCollapsed ? "px-2" : "px-4"} transition-all duration-200`}>
           <SidebarGroup>
             {!isCollapsed && (
               <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -88,7 +112,7 @@ export function AppSidebar() {
               </SidebarGroupLabel>
             )}
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
+              <SidebarMenu className={`space-y-1 ${isCollapsed ? "mt-2" : ""}`}>
                 {items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <Tooltip>
@@ -96,10 +120,13 @@ export function AppSidebar() {
                         <SidebarMenuButton
                           asChild
                           isActive={pathname === item.url}
-                          className="h-11 rounded-lg transition-all duration-200 hover:bg-accent/50"
+                          className={`${isCollapsed ? "h-10 w-10 p-0 justify-center" : "h-11 justify-start gap-3"} rounded-lg transition-all duration-200 hover:bg-accent/50`}
                           tooltip={isCollapsed ? item.title : undefined}
                         >
-                          <Link href={item.url} className="flex items-center gap-3">
+                          <Link
+                            href={item.url}
+                            className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}
+                          >
                             <item.icon className="h-4 w-4 shrink-0" />
                             {!isCollapsed && <span className="font-medium truncate">{item.title}</span>}
                           </Link>
@@ -126,11 +153,11 @@ export function AppSidebar() {
                 <div className="space-y-3 mt-3">
                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                     <span className="text-sm font-medium">Active Staff</span>
-                    <Badge variant="secondary">4</Badge>
+                    <Badge variant="secondary">12</Badge>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                     <span className="text-sm font-medium">Alerts</span>
-                    <Badge variant="destructive">2</Badge>
+                    <Badge variant="destructive">3</Badge>
                   </div>
                 </div>
               </SidebarGroupContent>
@@ -138,14 +165,36 @@ export function AppSidebar() {
           )}
         </SidebarContent>
 
-        <SidebarFooter className="p-4 border-t border-border/40 space-y-2">
+        <SidebarFooter
+          className={`${isCollapsed ? "p-2" : "p-4"} border-t border-border/40 space-y-2 transition-all duration-200`}
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                {!isCollapsed && <span>Refresh Data</span>}
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed && (
+              <TooltipContent side="right" align="center">
+                Refresh Data
+              </TooltipContent>
+            )}
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg`}
+                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
               >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 {!isCollapsed && <span>Toggle {theme === "dark" ? "Light" : "Dark"} Mode</span>}
@@ -163,14 +212,14 @@ export function AppSidebar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg`}
+                className={`${isCollapsed ? "w-10 h-10 p-0 relative" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
               >
                 <Bell className="h-4 w-4" />
                 {!isCollapsed && (
                   <>
                     <span>Notifications</span>
                     <Badge variant="destructive" className="ml-auto">
-                      2
+                      3
                     </Badge>
                   </>
                 )}
@@ -179,14 +228,14 @@ export function AppSidebar() {
                     variant="destructive"
                     className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
                   >
-                    2
+                    3
                   </Badge>
                 )}
               </Button>
             </TooltipTrigger>
             {isCollapsed && (
               <TooltipContent side="right" align="center">
-                Notifications (2)
+                Notifications (3)
               </TooltipContent>
             )}
           </Tooltip>
@@ -197,7 +246,7 @@ export function AppSidebar() {
                 variant="ghost"
                 size="sm"
                 onClick={toggleSidebar}
-                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg`}
+                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
               >
                 {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
                 {!isCollapsed && <span>Collapse Sidebar</span>}
