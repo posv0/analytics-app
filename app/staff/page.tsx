@@ -1,467 +1,424 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ErrorBoundary } from "@/components/error-boundary"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
-  Search,
-  TrendingUp,
-  TrendingDown,
   Users,
-  Award,
-  AlertTriangle,
+  Search,
   Filter,
-  UserPlus,
-  Download,
-  Phone,
+  TrendingUp,
+  Calendar,
+  UserCheck,
+  UserX,
+  AlertTriangle,
   Mail,
-  RefreshCw,
+  Phone,
+  MapPin,
+  Clock,
+  Award,
 } from "lucide-react"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-} from "recharts"
 import Link from "next/link"
 import { staffData } from "@/lib/mock-data"
-import {
-  calculateStaffMetrics,
-  getStaffPerformanceRadar,
-  safeNumber,
-  safeString,
-  formatCurrency,
-  calculateTenure,
-} from "@/lib/utils"
-
-type SortOption = "sales" | "salary" | "absences" | "performance" | "tenure" | "revenue-ratio"
+import { calculateStaffMetrics, formatCurrency, calculateTenure } from "@/lib/utils"
 
 export default function StaffPage() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortBy, setSortBy] = useState<SortOption>("sales")
-  const [filterBy, setFilterBy] = useState<"all" | "active" | "inactive" | "needs-holiday">("all")
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [departmentFilter, setDepartmentFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [performanceFilter, setPerformanceFilter] = useState("all")
+  const [holidayFilter, setHolidayFilter] = useState("all")
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsRefreshing(false)
-  }
-
+  // Process staff data with server-side calculations
   const processedStaffData = useMemo(() => {
     return staffData.map((staff) => {
       const metrics = calculateStaffMetrics(staff)
       return {
         ...staff,
         ...metrics,
+        performanceLevel:
+          metrics.revenueRatio >= 3
+            ? "Excellent"
+            : metrics.revenueRatio >= 2
+              ? "Good"
+              : metrics.revenueRatio >= 1
+                ? "Average"
+                : "Needs Improvement",
       }
     })
   }, [])
 
-  const radarData = getStaffPerformanceRadar(processedStaffData, {})
-
-  const filteredAndSortedStaff = useMemo(() => {
-    const filtered = processedStaffData.filter((staff) => {
+  // Filter staff data
+  const filteredStaff = useMemo(() => {
+    return processedStaffData.filter((staff) => {
       const matchesSearch =
-        safeString(staff?.staffName, "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        safeString(staff?.email, "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        safeString(staff?.position, "").toLowerCase().includes(searchTerm.toLowerCase())
+        staff.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        staff.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        staff.position.toLowerCase().includes(searchTerm.toLowerCase())
 
-      let matchesFilter = true
-      switch (filterBy) {
-        case "active":
-          matchesFilter = safeString(staff?.status, "unknown") === "active"
-          break
-        case "inactive":
-          matchesFilter = safeString(staff?.status, "unknown") === "inactive"
-          break
-        case "needs-holiday":
-          matchesFilter = staff.calculatedHolidaysTaken < 4
-          break
-        default:
-          matchesFilter = true
-      }
+      const matchesDepartment = departmentFilter === "all" || staff.department === departmentFilter
 
-      return matchesSearch && matchesFilter
+      const matchesStatus = statusFilter === "all" || staff.status === statusFilter
+
+      const matchesPerformance =
+        performanceFilter === "all" ||
+        (performanceFilter === "excellent" && staff.performanceLevel === "Excellent") ||
+        (performanceFilter === "good" && staff.performanceLevel === "Good") ||
+        (performanceFilter === "average" && staff.performanceLevel === "Average") ||
+        (performanceFilter === "needs-improvement" && staff.performanceLevel === "Needs Improvement")
+
+      const matchesHoliday =
+        holidayFilter === "all" ||
+        (holidayFilter === "taken" && staff.calculatedHolidaysTaken >= 4) ||
+        (holidayFilter === "needs" && staff.calculatedHolidaysTaken < 4)
+
+      return matchesSearch && matchesDepartment && matchesStatus && matchesPerformance && matchesHoliday
     })
+  }, [processedStaffData, searchTerm, departmentFilter, statusFilter, performanceFilter, holidayFilter])
 
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "sales":
-          return safeNumber(b?.totalSoldByStaff, 0) - safeNumber(a?.totalSoldByStaff, 0)
-        case "salary":
-          return safeNumber(b?.salaryAmount, 0) - safeNumber(a?.salaryAmount, 0)
-        case "absences":
-          return safeNumber(b?.calculatedDaysAbsent, 0) - safeNumber(a?.calculatedDaysAbsent, 0)
-        case "performance":
-          return safeNumber(b?.revenueRatio, 0) - safeNumber(a?.revenueRatio, 0)
-        case "tenure":
-          const aStart = new Date(safeString(a?.startDate, "0")).getTime()
-          const bStart = new Date(safeString(b?.startDate, "0")).getTime()
-          return aStart - bStart
-        case "revenue-ratio":
-          return safeNumber(b?.revenueRatio, 0) - safeNumber(a?.revenueRatio, 0)
-        default:
-          return 0
-      }
-    })
+  // Get unique departments
+  const departments = useMemo(() => {
+    const depts = [...new Set(staffData.map((staff) => staff.department))]
+    return depts.filter(Boolean)
+  }, [])
 
-    return filtered
-  }, [processedStaffData, searchTerm, sortBy, filterBy])
+  // Staff requiring holidays
+  const staffNeedingHolidays = useMemo(() => {
+    return processedStaffData.filter((staff) => staff.calculatedHolidaysTaken < 4)
+  }, [processedStaffData])
 
-  const chartData = processedStaffData
-    .filter((staff) => staff?.status === "active")
-    .map((staff) => ({
-      name: safeString(staff?.staffName, "Unknown"),
-      sales: safeNumber(staff?.totalSoldByStaff, 0),
-      revenueRatio: safeNumber(staff?.revenueRatio, 0),
-    }))
-    .sort((a, b) => b.sales - a.sales)
+  // Calculate summary stats
+  const summaryStats = useMemo(() => {
+    const totalStaff = processedStaffData.length
+    const activeStaff = processedStaffData.filter((s) => s.status === "active").length
+    const totalAbsences = processedStaffData.reduce((sum, s) => sum + s.calculatedDaysAbsent, 0)
+    const avgRevenueRatio = processedStaffData.reduce((sum, s) => sum + s.revenueRatio, 0) / processedStaffData.length
 
-  const getPerformanceLevel = (revenueRatio: number) => {
-    if (revenueRatio > 3) return { level: "Excellent", color: "bg-green-500", textColor: "text-green-700" }
-    if (revenueRatio > 2) return { level: "Good", color: "bg-blue-500", textColor: "text-blue-700" }
-    if (revenueRatio > 1) return { level: "Average", color: "bg-yellow-500", textColor: "text-yellow-700" }
-    return { level: "Below Average", color: "bg-red-500", textColor: "text-red-700" }
+    return {
+      totalStaff,
+      activeStaff,
+      totalAbsences,
+      avgRevenueRatio: Math.round(avgRevenueRatio * 100) / 100,
+    }
+  }, [processedStaffData])
+
+  const getPerformanceBadgeVariant = (level: string) => {
+    switch (level) {
+      case "Excellent":
+        return "default"
+      case "Good":
+        return "secondary"
+      case "Average":
+        return "outline"
+      default:
+        return "destructive"
+    }
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="default">Active</Badge>
+        return "default"
       case "inactive":
-        return <Badge variant="destructive">Inactive</Badge>
-      case "probation":
-        return <Badge variant="secondary">Probation</Badge>
+        return "secondary"
       default:
-        return <Badge variant="outline">Unknown</Badge>
+        return "outline"
     }
   }
-
-  const getHolidayStatus = (holidaysTaken: number) => {
-    if (holidaysTaken >= 4) {
-      return (
-        <Badge variant="default" className="bg-green-500">
-          Yes
-        </Badge>
-      )
-    }
-    return <Badge variant="destructive">Needs Holiday</Badge>
-  }
-
-  // Staff requiring holiday allocation
-  const staffNeedingHolidays = processedStaffData.filter(
-    (staff) => staff.status === "active" && staff.calculatedHolidaysTaken < 4,
-  )
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40 px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                Staff Management
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Comprehensive staff performance analytics • {filteredAndSortedStaff.length} staff members
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="gap-2 bg-transparent"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
-              <Button size="sm" className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Add Staff
-              </Button>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Staff Management</h1>
+            <p className="text-muted-foreground">Manage and monitor staff performance</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Badge variant="outline" className="text-sm px-3 py-1">
+              <Users className="h-4 w-4 mr-1" />
+              {summaryStats.totalStaff} Total Staff
+            </Badge>
+            <Badge variant="default" className="text-sm px-3 py-1">
+              <UserCheck className="h-4 w-4 mr-1" />
+              {summaryStats.activeStaff} Active
+            </Badge>
           </div>
         </div>
+      </div>
 
-        <div className="p-6 space-y-8">
-          {/* Search and Filter Controls */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search staff by name, email, or position..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11"
-                  />
-                </div>
-                <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-                  <SelectTrigger className="w-full lg:w-[200px] h-11">
-                    <SelectValue placeholder="Sort by..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sales">Total Sales</SelectItem>
-                    <SelectItem value="salary">Salary</SelectItem>
-                    <SelectItem value="absences">Days Absent</SelectItem>
-                    <SelectItem value="revenue-ratio">Revenue Ratio</SelectItem>
-                    <SelectItem value="tenure">Tenure</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterBy} onValueChange={(value: any) => setFilterBy(value)}>
-                  <SelectTrigger className="w-full lg:w-[180px] h-11">
-                    <Filter className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="Filter by..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Staff</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="needs-holiday">Needs Holiday</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      <div className="p-6 space-y-8">
+        {/* Holiday Alert Section */}
+        {staffNeedingHolidays.length > 0 && (
+          <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/50">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <AlertTitle className="text-orange-800 dark:text-orange-200">Holiday Allocation Required</AlertTitle>
+            <AlertDescription className="text-orange-700 dark:text-orange-300">
+              {staffNeedingHolidays.length} staff member(s) need holiday allocation:{" "}
+              {staffNeedingHolidays.map((s) => s.staffName).join(", ")}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Staff</CardTitle>
+              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{summaryStats.totalStaff}</div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{summaryStats.activeStaff} active members</p>
             </CardContent>
           </Card>
 
-          {/* Holiday Alert Section */}
-          {staffNeedingHolidays.length > 0 && (
-            <Card className="border-0 shadow-lg border-l-4 border-l-orange-500">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-orange-700">
-                  <AlertTriangle className="h-5 w-5" />
-                  Staff Requiring Holiday Allocation
-                </CardTitle>
-                <CardDescription>
-                  {staffNeedingHolidays.length} staff member(s) have taken less than 4 holidays this month
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {staffNeedingHolidays.map((staff) => (
-                    <Badge key={staff.staffId} variant="outline" className="text-orange-700 border-orange-300">
-                      {staff.staffName} ({staff.calculatedHolidaysTaken} days)
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">
+                Avg Revenue Ratio
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {summaryStats.avgRevenueRatio}x
+              </div>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Revenue per salary rupee</p>
+            </CardContent>
+          </Card>
 
-          {/* Analytics Overview */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Staff Performance Chart */}
-            <Card className="xl:col-span-2 border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Staff Performance Comparison
-                </CardTitle>
-                <CardDescription>Sales performance and revenue generation ratio</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                      formatter={(value, name) => [
-                        name === "sales" ? formatCurrency(value, "INR") : `${value}x`,
-                        name === "sales" ? "Total Sales" : "Revenue Ratio",
-                      ]}
-                    />
-                    <Bar dataKey="sales" fill="#3b82f6" name="sales" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="revenueRatio" fill="#10b981" name="revenueRatio" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">Total Absences</CardTitle>
+              <UserX className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                {summaryStats.totalAbsences}
+              </div>
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Days this month</p>
+            </CardContent>
+          </Card>
 
-            {/* Performance Radar */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-purple-600" />
-                  Team Performance Radar
-                </CardTitle>
-                <CardDescription>Multi-dimensional performance analysis</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
-                    <PolarRadiusAxis tick={{ fontSize: 10 }} />
-                    <Radar
-                      name="Team Average"
-                      dataKey="value"
-                      stroke="#3b82f6"
-                      fill="#3b82f6"
-                      fillOpacity={0.3}
-                      strokeWidth={2}
-                    />
-                    <Tooltip />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Staff Cards Grid */}
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Staff Directory</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredAndSortedStaff.map((staff) => {
-                if (!staff) return null
-
-                const performance = getPerformanceLevel(safeNumber(staff.revenueRatio, 0))
-
-                return (
-                  <Link key={staff.staffId} href={`/staff/${staff.staffId}`}>
-                    <Card className="hover:shadow-xl transition-all duration-300 cursor-pointer border-0 shadow-lg hover:scale-[1.02] bg-gradient-to-br from-card to-card/80">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg font-bold">
-                              {safeString(staff.staffName, "Unknown")}
-                            </CardTitle>
-                            <CardDescription className="text-sm">
-                              {safeString(staff.position, "N/A")} • {calculateTenure(staff.startDate)}
-                            </CardDescription>
-                            <div className="flex items-center gap-2 mt-2">
-                              {staff.email && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Mail className="h-3 w-3" />
-                                  <span className="truncate max-w-[120px]">{staff.email}</span>
-                                </div>
-                              )}
-                              {staff.phone && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Phone className="h-3 w-3" />
-                                  <span>{staff.phone}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <Badge variant="secondary" className={`${performance.color} text-white border-0`}>
-                              {performance.level}
-                            </Badge>
-                            {getStatusBadge(safeString(staff.status, "unknown"))}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground font-medium">Total Sales</p>
-                            <p className="text-lg font-bold text-foreground">
-                              {formatCurrency(staff.totalSoldByStaff, "INR")}
-                            </p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground font-medium">Revenue Ratio</p>
-                            <div className="flex items-center gap-1">
-                              <p className="text-lg font-bold text-foreground">{staff.revenueRatio.toFixed(1)}x</p>
-                              {staff.revenueRatio > 2 ? (
-                                <TrendingUp className="h-3 w-3 text-green-600" />
-                              ) : staff.revenueRatio < 1 ? (
-                                <TrendingDown className="h-3 w-3 text-red-600" />
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/40">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Salary</span>
-                            <span className="text-sm font-semibold">{formatCurrency(staff.salaryAmount, "INR")}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Absences</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm font-semibold">{staff.calculatedDaysAbsent}</span>
-                              {staff.calculatedDaysAbsent > 5 && <AlertTriangle className="h-3 w-3 text-amber-500" />}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-border/40">
-                          <span className="text-xs text-muted-foreground">Holiday Status</span>
-                          <div className="flex items-center gap-1">
-                            {getHolidayStatus(staff.calculatedHolidaysTaken)}
-                          </div>
-                        </div>
-
-                        {/* Performance Bar */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-muted-foreground">Performance Score</span>
-                            <span className="text-xs font-medium">
-                              {Math.min(100, Math.round(staff.revenueRatio * 25))}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-muted rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-500 ${
-                                staff.revenueRatio > 3
-                                  ? "bg-green-500"
-                                  : staff.revenueRatio > 2
-                                    ? "bg-blue-500"
-                                    : staff.revenueRatio > 1
-                                      ? "bg-yellow-500"
-                                      : "bg-red-500"
-                              }`}
-                              style={{ width: `${Math.min(100, staff.revenueRatio * 25)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-
-          {filteredAndSortedStaff.length === 0 && (
-            <Card className="border-0 shadow-lg">
-              <CardContent className="text-center py-12">
-                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-lg font-medium text-muted-foreground">No staff members found</p>
-                <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filter criteria</p>
-              </CardContent>
-            </Card>
-          )}
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Need Holidays</CardTitle>
+              <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                {staffNeedingHolidays.length}
+              </div>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Staff requiring allocation</p>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Filters */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filters & Search
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="lg:col-span-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search staff..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={performanceFilter} onValueChange={setPerformanceFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Performance" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Performance</SelectItem>
+                  <SelectItem value="excellent">Excellent</SelectItem>
+                  <SelectItem value="good">Good</SelectItem>
+                  <SelectItem value="average">Average</SelectItem>
+                  <SelectItem value="needs-improvement">Needs Improvement</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={holidayFilter} onValueChange={setHolidayFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Holiday Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Holiday Status</SelectItem>
+                  <SelectItem value="taken">Holidays Taken</SelectItem>
+                  <SelectItem value="needs">Needs Holiday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Staff Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredStaff.map((staff) => (
+            <Card
+              key={staff.staffId}
+              className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 hover:scale-[1.02]"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12 ring-2 ring-primary/20">
+                      <AvatarImage src={`/placeholder-user.jpg`} alt={staff.staffName} />
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+                        {staff.staffName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="font-semibold text-lg">{staff.staffName}</h3>
+                      <p className="text-sm text-muted-foreground">{staff.position}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant={getStatusBadgeVariant(staff.status)} className="text-xs">
+                      {staff.status}
+                    </Badge>
+                    <Badge variant={getPerformanceBadgeVariant(staff.performanceLevel)} className="text-xs">
+                      {staff.performanceLevel}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {/* Contact Info */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Mail className="h-3 w-3" />
+                    <span className="truncate">{staff.email || "N/A"}</span>
+                  </div>
+                  {staff.phone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      <span>{staff.phone}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-3 w-3" />
+                    <span>{staff.department}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span>{calculateTenure(staff.startDate)}</span>
+                  </div>
+                </div>
+
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
+                    <div className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                      {formatCurrency(staff.totalSoldByStaff, "INR")}
+                    </div>
+                    <div className="text-xs text-blue-600 dark:text-blue-400">Total Sales</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 dark:bg-green-950/50 rounded-lg">
+                    <div className="text-lg font-bold text-green-900 dark:text-green-100">{staff.revenueRatio}x</div>
+                    <div className="text-xs text-green-600 dark:text-green-400">Revenue Ratio</div>
+                  </div>
+                </div>
+
+                {/* Attendance & Holidays */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Days Absent</span>
+                    <Badge variant={staff.calculatedDaysAbsent > 5 ? "destructive" : "secondary"}>
+                      {staff.calculatedDaysAbsent}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Holiday Status</span>
+                    <Badge variant={staff.calculatedHolidaysTaken >= 4 ? "default" : "destructive"}>
+                      {staff.calculatedHolidaysTaken >= 4 ? "Yes" : "Needs Holiday"}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Revenue Progress */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Revenue Target</span>
+                    <span className="font-medium">
+                      {Math.min(100, Math.round((staff.totalSoldByStaff / 100000) * 100))}%
+                    </span>
+                  </div>
+                  <Progress value={Math.min(100, (staff.totalSoldByStaff / 100000) * 100)} className="h-2" />
+                </div>
+
+                {/* Action Button */}
+                <Link href={`/staff/${staff.staffId}`}>
+                  <Button className="w-full mt-4 bg-transparent" variant="outline">
+                    <Award className="h-4 w-4 mr-2" />
+                    View Details
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* No Results */}
+        {filteredStaff.length === 0 && (
+          <Card className="border-0 shadow-lg">
+            <CardContent className="text-center py-12">
+              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No staff found</h3>
+              <p className="text-muted-foreground">Try adjusting your search criteria or filters.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
-    </ErrorBoundary>
+    </div>
   )
 }

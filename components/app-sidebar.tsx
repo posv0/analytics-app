@@ -1,265 +1,149 @@
 "use client"
 
-import {
-  BarChart3,
-  Users,
-  Home,
-  TrendingUp,
-  Moon,
-  Sun,
-  Settings,
-  Bell,
-  ChevronLeft,
-  ChevronRight,
-  RefreshCw,
-} from "lucide-react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useTheme } from "next-themes"
-import { useEffect, useState } from "react"
+import * as React from "react"
+import { BarChart3, Home, Settings, Users, RefreshCw, TrendingUp, Building2 } from "lucide-react"
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
+  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Separator } from "@/components/ui/separator"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 
-const items = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Staff Overview",
-    url: "/staff",
-    icon: Users,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
-]
+// Menu items
+const data = {
+  navMain: [
+    {
+      title: "Overview",
+      url: "/",
+      icon: Home,
+    },
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: BarChart3,
+    },
+    {
+      title: "Analytics",
+      url: "/analytics",
+      icon: TrendingUp,
+    },
+    {
+      title: "Staff",
+      url: "/staff",
+      icon: Users,
+    },
+    {
+      title: "Settings",
+      url: "/settings",
+      icon: Settings,
+    },
+  ],
+}
 
-export function AppSidebar() {
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const { theme, setTheme } = useTheme()
-  const { state, toggleSidebar } = useSidebar()
-  const [mounted, setMounted] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-
-  const isCollapsed = state === "collapsed"
-
-  // Avoid hydration mismatch
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const router = useRouter()
+  const { state } = useSidebar()
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
     // Simulate data refresh
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    router.refresh()
     setIsRefreshing(false)
   }
 
-  if (!mounted) {
-    return null
-  }
-
   return (
-    <TooltipProvider>
-      <Sidebar className="border-r border-border/40" collapsible="icon">
-        <SidebarHeader
-          className={`${isCollapsed ? "p-3" : "p-6"} border-b border-border/40 transition-all duration-200`}
-        >
-          <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
-            <div
-              className={`flex ${isCollapsed ? "h-8 w-8" : "h-10 w-10"} items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shrink-0 transition-all duration-200`}
-            >
-              <BarChart3 className={`${isCollapsed ? "h-4 w-4" : "h-5 w-5"} text-white`} />
-            </div>
-            {!isCollapsed && (
-              <div className="min-w-0">
-                <h2 className="font-bold text-lg truncate">Analytics Pro</h2>
-                <p className="text-xs text-muted-foreground truncate">Business Intelligence</p>
-              </div>
-            )}
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader className={`transition-all duration-200 ${state === "collapsed" ? "px-2" : "px-4"}`}>
+        <div className={`flex items-center gap-2 ${state === "collapsed" ? "justify-center" : ""}`}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Building2 className="h-4 w-4" />
           </div>
-        </SidebarHeader>
-
-        <SidebarContent className={`${isCollapsed ? "px-2" : "px-4"} transition-all duration-200`}>
-          <SidebarGroup>
-            {!isCollapsed && (
-              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Navigation
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu className={`space-y-1 ${isCollapsed ? "mt-2" : ""}`}>
-                {items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname === item.url}
-                          className={`${isCollapsed ? "h-10 w-10 p-0 justify-center" : "h-11 justify-start gap-3"} rounded-lg transition-all duration-200 hover:bg-accent/50`}
-                          tooltip={isCollapsed ? item.title : undefined}
-                        >
-                          <Link
-                            href={item.url}
-                            className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}
-                          >
-                            <item.icon className="h-4 w-4 shrink-0" />
-                            {!isCollapsed && <span className="font-medium truncate">{item.title}</span>}
-                          </Link>
-                        </SidebarMenuButton>
-                      </TooltipTrigger>
-                      {isCollapsed && (
-                        <TooltipContent side="right" align="center">
-                          {item.title}
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {!isCollapsed && (
-            <SidebarGroup className="mt-6">
-              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Quick Stats
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <div className="space-y-3 mt-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm font-medium">Active Staff</span>
-                    <Badge variant="secondary">12</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm font-medium">Alerts</span>
-                    <Badge variant="destructive">3</Badge>
-                  </div>
-                </div>
-              </SidebarGroupContent>
-            </SidebarGroup>
+          {state === "expanded" && (
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-semibold">Business Analytics</span>
+              <span className="truncate text-xs text-muted-foreground">Dashboard</span>
+            </div>
           )}
-        </SidebarContent>
+        </div>
+      </SidebarHeader>
 
-        <SidebarFooter
-          className={`${isCollapsed ? "p-2" : "p-4"} border-t border-border/40 space-y-2 transition-all duration-200`}
-        >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                {!isCollapsed && <span>Refresh Data</span>}
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right" align="center">
-                Refresh Data
-              </TooltipContent>
-            )}
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
-              >
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                {!isCollapsed && <span>Toggle {theme === "dark" ? "Light" : "Dark"} Mode</span>}
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right" align="center">
-                Toggle {theme === "dark" ? "Light" : "Dark"} Mode
-              </TooltipContent>
-            )}
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`${isCollapsed ? "w-10 h-10 p-0 relative" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
-              >
-                <Bell className="h-4 w-4" />
-                {!isCollapsed && (
-                  <>
-                    <span>Notifications</span>
-                    <Badge variant="destructive" className="ml-auto">
-                      3
-                    </Badge>
-                  </>
-                )}
-                {isCollapsed && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+      <SidebarContent className={`transition-all duration-200 ${state === "collapsed" ? "px-1" : "px-2"}`}>
+        <SidebarGroup>
+          <SidebarGroupLabel className={state === "collapsed" ? "sr-only" : ""}>Navigation</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {data.navMain.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.url}
+                    tooltip={state === "collapsed" ? item.title : undefined}
+                    className={`transition-all duration-200 ${
+                      state === "collapsed" ? "h-10 w-10 p-0 justify-center" : "h-10 px-3 justify-start"
+                    }`}
                   >
-                    3
-                  </Badge>
-                )}
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right" align="center">
-                Notifications (3)
-              </TooltipContent>
-            )}
-          </Tooltip>
+                    <Link href={item.url}>
+                      <item.icon className={`${state === "collapsed" ? "h-5 w-5" : "h-4 w-4"}`} />
+                      {state === "expanded" && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleSidebar}
-                className={`${isCollapsed ? "w-10 h-10 p-0" : "w-full justify-start gap-3 h-11"} rounded-lg transition-all duration-200`}
-              >
-                {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                {!isCollapsed && <span>Collapse Sidebar</span>}
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right" align="center">
-                Expand Sidebar
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </SidebarFooter>
-      </Sidebar>
-    </TooltipProvider>
+        <Separator className="my-2" />
+
+        <SidebarGroup>
+          <SidebarGroupLabel className={state === "collapsed" ? "sr-only" : ""}>Actions</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  tooltip={state === "collapsed" ? "Refresh Data" : undefined}
+                  className={`transition-all duration-200 ${
+                    state === "collapsed" ? "h-10 w-10 p-0 justify-center" : "h-10 px-3 justify-start"
+                  }`}
+                >
+                  <RefreshCw
+                    className={`${state === "collapsed" ? "h-5 w-5" : "h-4 w-4"} ${isRefreshing ? "animate-spin" : ""}`}
+                  />
+                  {state === "expanded" && <span>Refresh Data</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className={`transition-all duration-200 ${state === "collapsed" ? "px-2" : "px-4"}`}>
+        {state === "expanded" && (
+          <div className="text-xs text-muted-foreground">
+            <p>Business Analytics v2.0</p>
+            <p>Last updated: {new Date().toLocaleDateString()}</p>
+          </div>
+        )}
+      </SidebarFooter>
+
+      <SidebarRail />
+    </Sidebar>
   )
 }

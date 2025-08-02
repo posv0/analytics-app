@@ -19,9 +19,9 @@ import {
   Bar,
 } from "recharts"
 import Link from "next/link"
-import { staffData, staffPerformanceHistory } from "@/lib/mock-data"
+import { staffData } from "@/lib/mock-data"
 import { notFound } from "next/navigation"
-import { getStaffTrends, getStaffGoals } from "@/lib/utils"
+import { getStaffTrends, getStaffGoals, calculateStaffMetrics, formatCurrency } from "@/lib/utils"
 
 interface StaffDetailPageProps {
   params: {
@@ -36,15 +36,16 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
     notFound()
   }
 
-  const performanceHistory = staffPerformanceHistory[staff.staffId] || []
-  const trends = getStaffTrends(staff, performanceHistory)
+  // Use server-side calculations
+  const metrics = calculateStaffMetrics(staff)
+  const trends = getStaffTrends(staff, [])
   const goals = getStaffGoals(staff)
 
   // Process daily sales data for the chart
   const chartData = staff.monthlySalesOnDailyBasis.map((day) => ({
     date: day.date.split(" ")[0], // Extract day number
     amount: day.amount,
-    target: 2000, // Daily target
+    target: 3000, // Daily target in INR
   }))
 
   // Helper function to determine status for zero sales days
@@ -57,9 +58,14 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
     return isWeekend ? "Day Off" : "Absent"
   }
 
-  const efficiency = Math.round((staff.totalSoldByStaff / staff.salaryAmount) * 100)
   const performanceLevel =
-    staff.totalSoldByStaff > 60000 ? "Excellent" : staff.totalSoldByStaff > 40000 ? "Good" : "Needs Improvement"
+    metrics.revenueRatio >= 3
+      ? "Excellent"
+      : metrics.revenueRatio >= 2
+        ? "Good"
+        : metrics.revenueRatio >= 1
+          ? "Average"
+          : "Needs Improvement"
 
   return (
     <div className="min-h-screen">
@@ -80,7 +86,13 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
           </div>
           <Badge
             variant={
-              performanceLevel === "Excellent" ? "default" : performanceLevel === "Good" ? "secondary" : "destructive"
+              performanceLevel === "Excellent"
+                ? "default"
+                : performanceLevel === "Good"
+                  ? "secondary"
+                  : performanceLevel === "Average"
+                    ? "outline"
+                    : "destructive"
             }
             className="text-sm px-3 py-1"
           >
@@ -99,23 +111,23 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                ${staff.totalSoldByStaff.toLocaleString()}
+                {formatCurrency(staff.totalSoldByStaff, "INR")}
               </div>
               <div className="mt-2">
-                <Progress value={Math.min(100, (staff.totalSoldByStaff / 80000) * 100)} className="h-2" />
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Target: $80,000</p>
+                <Progress value={Math.min(100, (staff.totalSoldByStaff / 120000) * 100)} className="h-2" />
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Target: ₹1,20,000</p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">Efficiency</CardTitle>
+              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">Revenue Ratio</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900 dark:text-green-100">{efficiency}%</div>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Sales per salary dollar</p>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">{metrics.revenueRatio}x</div>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Revenue per salary rupee</p>
             </CardContent>
           </Card>
 
@@ -125,7 +137,9 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
               <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{staff.holidaysTaken}</div>
+              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                {metrics.calculatedHolidaysTaken}
+              </div>
               <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Days this month</p>
             </CardContent>
           </Card>
@@ -136,7 +150,9 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
               <UserX className="h-4 w-4 text-orange-600 dark:text-orange-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">{staff.daysAbsent}</div>
+              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                {metrics.calculatedDaysAbsent}
+              </div>
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">This month</p>
             </CardContent>
           </Card>
@@ -171,7 +187,7 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "8px",
                     }}
-                    formatter={(value, name) => [`$${value}`, name === "amount" ? "Sales" : "Target"]}
+                    formatter={(value, name) => [`₹${value}`, name === "amount" ? "Sales" : "Target"]}
                   />
                   <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} fill="url(#colorSales)" />
                   <Line type="monotone" dataKey="target" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" />
@@ -201,7 +217,7 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "8px",
                     }}
-                    formatter={(value) => [`$${value}`, "Sales"]}
+                    formatter={(value) => [`₹${value}`, "Sales"]}
                   />
                   <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -240,9 +256,15 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
                   <Progress value={goal.progress} className="h-2" />
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>
-                      {goal.current} / {goal.target}
+                      {typeof goal.current === "number" && goal.title.includes("Sales")
+                        ? formatCurrency(goal.current, "INR")
+                        : goal.current}{" "}
+                      /{" "}
+                      {typeof goal.target === "number" && goal.title.includes("Sales")
+                        ? formatCurrency(goal.target, "INR")
+                        : goal.target}
                     </span>
-                    <span>{goal.progress}%</span>
+                    <span>{Math.round(goal.progress)}%</span>
                   </div>
                 </div>
               ))}
@@ -273,7 +295,7 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
                 <TableBody>
                   {staff.monthlySalesOnDailyBasis.slice(0, 15).map((day) => {
                     const status = getStatusForZeroSales(day.date, day.amount)
-                    const target = 2000
+                    const target = 3000
                     const performance = day.amount / target
 
                     return (
@@ -281,9 +303,9 @@ export default function StaffDetailPage({ params }: StaffDetailPageProps) {
                         <TableCell className="font-medium">{day.date}</TableCell>
                         <TableCell>
                           {day.amount > 0 ? (
-                            <span className="font-semibold">${day.amount.toLocaleString()}</span>
+                            <span className="font-semibold">{formatCurrency(day.amount, "INR")}</span>
                           ) : (
-                            <span className="text-muted-foreground">$0</span>
+                            <span className="text-muted-foreground">₹0</span>
                           )}
                         </TableCell>
                         <TableCell>
