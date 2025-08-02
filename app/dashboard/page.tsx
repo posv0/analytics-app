@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,8 @@ import {
   Target,
   ArrowUpRight,
   ArrowDownRight,
+  Download,
+  Filter,
 } from "lucide-react"
 import {
   XAxis,
@@ -35,6 +37,7 @@ import {
   getMonthlySalesData,
   getShopPerformanceData,
   getQuarterlyComparison,
+  filterDataByPeriod,
 } from "@/lib/utils"
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
@@ -43,9 +46,14 @@ export default function Dashboard() {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
   const [selectedPeriod, setSelectedPeriod] = useState<"7d" | "30d" | "90d" | "1y">("30d")
 
-  const advancedStats = calculateAdvancedStats(dailySalesData, staffData, yearlyData)
-  const monthlySalesData = getMonthlySalesData(dailySalesData)
-  const shopPerformanceData = getShopPerformanceData(dailySalesData)
+  // Filter data based on selected period
+  const filteredData = useMemo(() => {
+    return filterDataByPeriod(dailySalesData, selectedPeriod)
+  }, [selectedPeriod])
+
+  const advancedStats = calculateAdvancedStats(filteredData, staffData, yearlyData)
+  const monthlySalesData = getMonthlySalesData(filteredData)
+  const shopPerformanceData = getShopPerformanceData(filteredData)
   const quarterlyData = getQuarterlyComparison(yearlyData)
 
   const toggleDate = (date: string) => {
@@ -56,6 +64,26 @@ export default function Dashboard() {
       newExpanded.add(date)
     }
     setExpandedDates(newExpanded)
+  }
+
+  const handleExportData = () => {
+    // Export functionality
+    const dataToExport = {
+      period: selectedPeriod,
+      stats: advancedStats,
+      salesData: monthlySalesData,
+      shopData: shopPerformanceData,
+    }
+
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `dashboard-data-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -69,23 +97,46 @@ export default function Dashboard() {
             </h1>
             <p className="text-muted-foreground mt-1">Real-time business insights and analytics</p>
           </div>
-          <div className="flex items-center gap-2">
-            {(["7d", "30d", "90d", "1y"] as const).map((period) => (
-              <Button
-                key={period}
-                variant={selectedPeriod === period ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedPeriod(period)}
-                className="text-xs"
-              >
-                {period === "7d" ? "7 Days" : period === "30d" ? "30 Days" : period === "90d" ? "90 Days" : "1 Year"}
-              </Button>
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              {(["7d", "30d", "90d", "1y"] as const).map((period) => (
+                <Button
+                  key={period}
+                  variant={selectedPeriod === period ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedPeriod(period)}
+                  className="text-xs"
+                >
+                  {period === "7d" ? "7 Days" : period === "30d" ? "30 Days" : period === "90d" ? "90 Days" : "1 Year"}
+                </Button>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" onClick={handleExportData} className="gap-2 bg-transparent">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
           </div>
         </div>
       </div>
 
       <div className="p-6 space-y-8">
+        {/* Period Info */}
+        <div className="flex items-center justify-between">
+          <Badge variant="secondary" className="text-sm">
+            Showing data for:{" "}
+            {selectedPeriod === "7d"
+              ? "Last 7 Days"
+              : selectedPeriod === "30d"
+                ? "Last 30 Days"
+                : selectedPeriod === "90d"
+                  ? "Last 90 Days"
+                  : "Last Year"}
+            ({filteredData.length} records)
+          </Badge>
+          <div className="text-sm text-muted-foreground">Last updated: {new Date().toLocaleString()}</div>
+        </div>
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50">
@@ -104,7 +155,7 @@ export default function Dashboard() {
                   <ArrowDownRight className="h-3 w-3 text-red-600" />
                 )}
                 <p className={`text-xs ${advancedStats.revenueGrowth > 0 ? "text-green-600" : "text-red-600"}`}>
-                  {Math.abs(advancedStats.revenueGrowth)}% from last month
+                  {Math.abs(advancedStats.revenueGrowth)}% from previous period
                 </p>
               </div>
             </CardContent>
@@ -163,7 +214,7 @@ export default function Dashboard() {
                 <TrendingUp className="h-5 w-5 text-blue-600" />
                 Revenue Trend Analysis
               </CardTitle>
-              <CardDescription>Monthly performance with growth indicators</CardDescription>
+              <CardDescription>Performance over selected period with growth indicators</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
@@ -268,11 +319,13 @@ export default function Dashboard() {
               <Calendar className="h-5 w-5 text-indigo-600" />
               Daily Sales Breakdown
             </CardTitle>
-            <CardDescription>Detailed daily performance with shop-wise analysis</CardDescription>
+            <CardDescription>
+              Detailed daily performance with shop-wise analysis (showing {filteredData.length} days)
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {dailySalesData.slice(0, 5).map((dayData) => (
+              {filteredData.slice(0, Math.min(10, filteredData.length)).map((dayData) => (
                 <div key={dayData.date} className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
                   <Button
                     variant="ghost"
@@ -349,6 +402,9 @@ export default function Dashboard() {
                   )}
                 </div>
               ))}
+              {filteredData.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">No data available for the selected period</div>
+              )}
             </div>
           </CardContent>
         </Card>
